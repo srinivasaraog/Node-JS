@@ -28,7 +28,11 @@ const loginSchema =new Schema({
   confirmpassword: {
     type: String,
     required: true
-  }
+  },
+  roles: [{ type: 'String' }],
+  isVerified: { type: Boolean, default: false },
+  passwordResetToken: String,
+  passwordResetExpires: Date
 });
 
 loginSchema.pre('save',function(next){
