@@ -1,5 +1,6 @@
 const Tokens = require('../models/Token');
 const User = require('../models/user');
+const offerRide=require('../models/offerRide')
 const config = require('../../config');
 const mongoose = require('mongoose');
 var crypto = require('crypto');
@@ -174,6 +175,44 @@ module.exports = function (app, express) {
       });
     })
   })
+
+
+  api.post('/offerRide', function (req, res) {
+     console.log('from',req.body.from)
+   console.log('to',req.body.to)
+     //name:req.body.name;
+    // Create and save the user
+    var offerride = new offerRide({
+      
+      from : {
+		  latitude:req.body.from.latitude,
+		  longitude:req.body.from.longitude,
+		  address:req.body.from.address
+	  },
+      to: {
+		  
+		  latitude:req.body.to.latitude,
+		  longitude:req.body.to.longitude,
+		  address:req.body.to.address
+		  
+	  }
+      //name:name
+      
+    });
+   
+console.log("....offerRide",offerride)
+    offerride.save(function (err) {
+      
+
+      if (err) { return res.status(500).send({ msg: err.message }); }
+       else{
+           return res.send({status:200,offerride:"updated ride details"})
+         }
+
+    });
+
+
+  });
 
   console.log("api......", api)
   return api
