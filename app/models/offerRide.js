@@ -8,7 +8,10 @@ const bcrypt=require('bcrypt');
 
 
 const offerRideSchema =new Schema({
-    
+	  _id: {
+		type: String,
+		required: true
+	  },
       from: {
         type: Object,
         required: true
