@@ -184,21 +184,24 @@ module.exports = function (app, express) {
 
         // Create and save the user
         var offerride = new offerRide({
-            _id: req.body.id,
-            from: {
-                latitude: req.body.from.latitude,
-                longitude: req.body.from.longitude,
-                address: req.body.from.address
-            },
-            to: {
+            user_id:req.body.id,
+            profile: [{
+                
+                from: {
+                    latitude: req.body.from.latitude,
+                    longitude: req.body.from.longitude,
+                    address: req.body.from.address
+                },
+                to: {
 
-                latitude: req.body.to.latitude,
-                longitude: req.body.to.longitude,
-                address: req.body.to.address
+                    latitude: req.body.to.latitude,
+                    longitude: req.body.to.longitude,
+                    address: req.body.to.address
 
-            }
-            //name:name
-
+                },
+                date: req.body.date,
+                time: req.body.time
+            }]
         });
 
         console.log("....offerRide", offerride);
@@ -207,34 +210,54 @@ module.exports = function (app, express) {
             if (!user) {
                 return res.status(400).send({ msg: 'We were unable to find a user for this userid.' });
             } else {
-                offerride.save(function (err) {
-
+                offerRide.findOne({ user_id: req.body.id, 'profile.date': { $eq: req.body.date } }, function (err, ride) {
+                    console.log("check rides from today ");
                     if (err) {
-                        return res.status(500).send({ msg: err.message });
-                    } else {
-                        return res.send({ status: 200, offerride: "updated ride details" })
+                        return res.status(400).send({ msg: 'We were unable to find a user for this userid.' });
                     }
 
+                    if(ride){
+                        return res.send({ status: 409, offerride: "modify ride details" })
+                    }else{
+                        console.log("no rides available from today please add rides for this user ");
+                        
+                        offerride.save(function(err){
+                            if(err){
+                                return res.status(400).send({ msg: err});
+                            }
+                            return res.send({ status: 200, offerride: "updated ride details" })
+                        })
+                    }
+                     
+
+                    
                 });
             }
-
-        });
+        })
 
     });
+
+
 
 
     api.post('/yourride', function (req, res) {
 
-  console.log("check the id",req.body.userId)
-        offerRide.find({_id:req.body.userId}, function (err, offerride) {
-            if (!offerride) {
-                res.send("no ride details");
+        console.log("check the id", req.body.userId)
+        offerRide.find({ user_id: req.body.userId}, function (err, offerride) {
+            
+            if (offerride.length<=0) {
+                return res.send({ status: 200})
                 return;
+            } else {
+                //console.log(...offerride)
+                return res.send({ status: 200, offerride:offerride })
             }
-            res.json(offerride);
         })
 
     });
+
+
+
     console.log("api......", api)
     return api
 }
