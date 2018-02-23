@@ -184,9 +184,9 @@ module.exports = function (app, express) {
 
         // Create and save the user
         var offerride = new offerRide({
-            user_id:req.body.id,
+            user_id: req.body.id,
             profile: [{
-                
+
                 from: {
                     latitude: req.body.from.latitude,
                     longitude: req.body.from.longitude,
@@ -216,21 +216,21 @@ module.exports = function (app, express) {
                         return res.status(400).send({ msg: 'We were unable to find a user for this userid.' });
                     }
 
-                    if(ride){
+                    if (ride) {
                         return res.send({ status: 409, offerride: "modify ride details" })
-                    }else{
+                    } else {
                         console.log("no rides available from today please add rides for this user ");
-                        
-                        offerride.save(function(err){
-                            if(err){
-                                return res.status(400).send({ msg: err});
+
+                        offerride.save(function (err) {
+                            if (err) {
+                                return res.status(400).send({ msg: err });
                             }
                             return res.send({ status: 200, offerride: "updated ride details" })
                         })
                     }
-                     
 
-                    
+
+
                 });
             }
         })
@@ -243,20 +243,61 @@ module.exports = function (app, express) {
     api.post('/yourride', function (req, res) {
 
         console.log("check the id", req.body.userId)
-        offerRide.find({ user_id: req.body.userId}, function (err, offerride) {
-            
-            if (offerride.length<=0) {
-                return res.send({ status: 200})
+        offerRide.find({ user_id: req.body.userId }, function (err, offerride) {
+
+            if (offerride.length <= 0) {
+                return res.send({ status: 200 })
                 return;
             } else {
                 //console.log(...offerride)
-                return res.send({ status: 200, offerride:offerride })
+                return res.send({ status: 200, offerride: offerride })
             }
         })
+
+
+        
+
 
     });
 
 
+    api.post('/updateyourride', function (req, res) {
+
+      
+       
+        offerRide.update(
+            { 
+                user_id: req.body.id, 'profile.date': { $eq: req.body.date }
+            
+            },
+        
+            {
+                "$set": {
+
+               
+                    "profile.$.from.latitude": req.body.from.latitude,
+                    "profile.$.from.longitude": req.body.from.longitude,
+                    "profile.$.from.address": req.body.from.address,                
+                    "profile.$.to.latitude": req.body.to.latitude,
+                    "profile.$.to.longitude": req.body.to.longitude,
+                    "profile.$.to.address": req.body.to.address
+                
+                
+                }
+               
+            },function(err){
+
+                if(err){
+
+                    console.log(err);
+                    return res.send({ status: 400, offerride: err })
+                }
+                return res.send({ status: 200, offerride: "updated" })
+            }
+        
+    
+        )
+    });
 
     console.log("api......", api)
     return api
