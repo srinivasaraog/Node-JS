@@ -35,6 +35,11 @@ const offerRideSchema = new Schema({
     time: {
       type: String,
       required: true
+    },
+
+    distance:{
+      type:String,
+      required:true
     }
   }]
 

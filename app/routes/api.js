@@ -200,7 +200,9 @@ module.exports = function (app, express) {
 
                 },
                 date: req.body.date,
-                time: req.body.time
+                time: req.body.time,
+                distance: req.body.distance
+
             }]
         });
 
@@ -219,6 +221,7 @@ module.exports = function (app, express) {
                     if (ride) {
                         return res.send({ status: 409, offerride: "modify ride details" })
                     } else {
+
                         console.log("no rides available from today please add rides for this user ");
 
                         offerride.save(function (err) {
@@ -255,7 +258,7 @@ module.exports = function (app, express) {
         })
 
 
-        
+
 
 
     });
@@ -263,42 +266,80 @@ module.exports = function (app, express) {
 
     api.post('/updateyourride', function (req, res) {
 
-      
-       
         offerRide.update(
-            { 
+            {
                 user_id: req.body.id, 'profile.date': { $eq: req.body.date }
-            
+
             },
-        
+
             {
                 "$set": {
 
-               
+
                     "profile.$.from.latitude": req.body.from.latitude,
                     "profile.$.from.longitude": req.body.from.longitude,
-                    "profile.$.from.address": req.body.from.address,                
+                    "profile.$.from.address": req.body.from.address,
                     "profile.$.to.latitude": req.body.to.latitude,
                     "profile.$.to.longitude": req.body.to.longitude,
-                    "profile.$.to.address": req.body.to.address
-                
-                
-                }
-               
-            },function(err){
+                    "profile.$.to.address": req.body.to.address,
+                    "profile.$.date": req.body.date,
+                    "profile.$.time": req.body.time,
+                    "profile.$.distance": req.body.distance
 
-                if(err){
+
+                }
+
+            }, function (err) {
+
+                if (err) {
 
                     console.log(err);
                     return res.send({ status: 400, offerride: err })
                 }
                 return res.send({ status: 200, offerride: "updated" })
             }
-        
-    
+
+
         )
     });
 
+
+    api.delete('/deleteRide', function (req, res) {
+
+        console.log("delete request", req)
+
+        offerRide.deleteOne({ user_id: req.body.userId, 'profile.date': { $eq: req.body.date } }, function (err, offerride) {
+            if (err) {
+                console.log(err);
+                return res.send({ status: 400, offerride: err })
+            }
+            //console.log(offerride);
+            offerRide.find({ user_id: req.body.userId }, function (err, offerride) {
+
+                if (offerride.length <= 0) {
+                    return res.send({ status: 200 })
+                    return;
+                } else {
+                    //console.log(...offerride)
+                    return res.send({ status: 200, offerride: offerride })
+                }
+            })
+        });
+
+
+    });
+
+
+
+
+    api.post("/findride", function (req, res) {
+        offerRide.places.find( { 'profile' : { $near : [50,50] , $maxDistance : 1/111.12 } } )
+
+
+
+
+       // find( { loc : { $near : [50,50] , $maxDistance : 1/111.12 } } )
+    })
     console.log("api......", api)
     return api
 }
