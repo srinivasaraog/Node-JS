@@ -1,11 +1,24 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
-
+//const geoschema = require('./geolocation')
 const bcrypt = require('bcrypt');
 
+//var GeoJSON = require('mongoose-geojson-schema');
 
+var GeoSchema = new Schema({
 
+  type:{
+      type:String,
+      default:"Point"
 
+  },
+  coordinates:{
+    type:[Number],
+    index:"2dsphere"
+  }
+
+    
+});
 
 const offerRideSchema = new Schema({
 
@@ -36,19 +49,20 @@ const offerRideSchema = new Schema({
       type: String,
       required: true
     },
-
-    distance:{
-      type:String,
-      required:true
+    distance: {
+      type: String,
+      required: true
     }
-  }]
+  }],
+  
+   geometry:GeoSchema
+
 
 });
 
 
-
-
-
+offerRideSchema.index({ geometry: '2dsphere' })
 
 const offerRide = module.exports = mongoose.model('offerRide', offerRideSchema);
 module.exports = offerRide;
+
