@@ -52,10 +52,26 @@ const offerRideSchema = new Schema({
     distance: {
       type: String,
       required: true
+    },
+    seatsAvailable:{
+      type:String,
+      required:true
+    },
+    user_id: {
+      type: String,
+      required:true
+     
     }
   }],
   
-   geometry:GeoSchema
+   geometry:GeoSchema,
+   confirmation:[{
+
+    ridesInQueue:{
+      type: Object,
+      required: false
+    }
+   }]
 
 
 });

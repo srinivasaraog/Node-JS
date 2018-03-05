@@ -1,7 +1,7 @@
 const Tokens = require('../models/Token');
 const User = require('../models/user');
 const offerRide = require('../models/offerRide')
-const  GeoJSON = require('mongoose-geojson-schema');
+const GeoJSON = require('mongoose-geojson-schema');
 
 const config = require('../../config');
 const mongoose = require('mongoose');
@@ -188,7 +188,7 @@ module.exports = function (app, express) {
         var offerride = new offerRide({
             user_id: req.body.id,
             profile: [{
-
+     
                 from: {
                     latitude: req.body.from.latitude,
                     longitude: req.body.from.longitude,
@@ -203,21 +203,23 @@ module.exports = function (app, express) {
                 },
                 date: req.body.date,
                 time: req.body.time,
-                distance: req.body.distance
-
+                distance: req.body.distance,
+                seatsAvailable:req.body.seatsAvailable,
+                user_id: req.body.id
             }],
-            
-           geometry: {
+
+            geometry: {
                 type: "Point",
-                coordinates: [parseFloat(req.body.from.longitude),parseFloat(req.body.from.latitude)]
-          }
-        
-              
-              
-              
+                coordinates: [parseFloat(req.body.from.longitude), parseFloat(req.body.from.latitude)]
+            }
+            
+
+
+
+
         });
 
-        
+
 
         console.log("....offerRide", offerride);
         User.findOne({ _id: req.body.id }, function (err, user) {
@@ -225,8 +227,8 @@ module.exports = function (app, express) {
             if (!user) {
                 return res.status(400).send({ msg: 'We were unable to find a user for this userid.' });
             } else {
-               
-                
+
+
                 offerRide.findOne({ user_id: req.body.id, 'profile.date': { $eq: req.body.date } }, function (err, ride) {
                     console.log("check rides from today ");
                     if (err) {
@@ -236,8 +238,8 @@ module.exports = function (app, express) {
                     if (ride) {
                         return res.send({ status: 409, offerride: "modify ride details" })
                     } else {
-                       
-                        offerride.set(   {'geometry.coordinates':[parseFloat(req.body.from.longitude),parseFloat(req.body.from.latitude)]})
+
+                        offerride.set({ 'geometry.coordinates': [parseFloat(req.body.from.longitude), parseFloat(req.body.from.latitude)] })
 
                         console.log("no rides available from today please add rides for this user ");
 
@@ -245,7 +247,7 @@ module.exports = function (app, express) {
                             if (err) {
                                 return res.status(400).send({ msg: err });
                             }
-                           // offerride.ensureIndex({'location': '2dsphere'})
+                            // offerride.ensureIndex({'location': '2dsphere'})
                             return res.send({ status: 200, offerride: "updated ride details" })
                         })
                     }
@@ -263,8 +265,8 @@ module.exports = function (app, express) {
 
     api.post('/yourride', function (req, res) {
 
-        console.log("check the id", req.body.userId)
-        offerRide.find({ user_id: req.body.userId }, function (err, offerride) {
+        console.log("check the id", req.body.date)
+        offerRide.find({ "profile.date": { $gte: req.body.date }, user_id: req.body.userId }, function (err, offerride) {
 
             if (offerride.length <= 0) {
                 return res.send({ status: 200 })
@@ -273,14 +275,29 @@ module.exports = function (app, express) {
                 //console.log(...offerride)
                 return res.send({ status: 200, offerride: offerride })
             }
-        })
+        });
 
-
+       
 
 
 
     });
+ 
+    api.post('/ridehistory', function (req, res) {
 
+        console.log("check the id", req.body.date)
+        offerRide.find({ "profile.date": { $lt: req.body.date }, user_id: req.body.userId }, function (err, offerride) {
+
+            if (offerride.length <= 0) {
+                return res.send({ status: 200 })
+                return;
+            } else {
+                //console.log(...offerride)
+                return res.send({ status: 200, offerride: offerride })
+            }
+        });
+
+    });
 
     api.post('/updateyourride', function (req, res) {
 
@@ -303,7 +320,8 @@ module.exports = function (app, express) {
                     "profile.$.date": req.body.date,
                     "profile.$.time": req.body.time,
                     "profile.$.distance": req.body.distance,
-                    "geometry.coordinates":[parseFloat(req.body.from.longitude),parseFloat(req.body.from.latitude)]
+                    "profile.$.seatsAvailable":req.body.seatsAvailable,
+                    "geometry.coordinates": [parseFloat(req.body.from.longitude), parseFloat(req.body.from.latitude)]
                 }
 
             }, function (err) {
@@ -346,72 +364,185 @@ module.exports = function (app, express) {
 
     });
 
-    
- 
+
+    function _getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+        var R = 6371; // Radius of the earth in kilometers
+        var dLat = deg2rad(lat2 - lat1); // deg2rad below
+        var dLon = deg2rad(lon2 - lon1);
+        var a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        var d = R * c; // Distance in KM
+        return d;
+    }
+
+    function deg2rad(deg) {
+        return deg * (Math.PI / 180)
+    }
+
+
     api.post('/findride', function (req, res) {
-      console.log(req.body);
-      offerRide.find(
-        { geometry :
-            { $near :
-               {
-                 $geometry : {
-                    type : "Point" ,
-                    coordinates : [parseFloat(req.body.from.longitude),parseFloat(req.body.from.latitude)] },
-                    $maxDistance : 100000
-               }
-            }
-         }, function (err, availableRides) {
-               if(err){
-                   return res.send({ status: 200, findride: err })
-              }
-               if(availableRides.length>0){       
-                      
-                    return res.send({ status: 200, findride: availableRides })
-                }else{
+        console.log(req.body);
+        offerRide.find(
+            {
+                "profile.date": { $eq: req.body.date },
+                "profile.seatsAvailable": { $gte: req.body.seatsRequired },
+
+
+                geometry:
+                    {
+                        $near:
+                            {
+                                $geometry: {
+                                    type: "Point",
+                                    coordinates: [parseFloat(req.body.from.longitude), parseFloat(req.body.from.latitude)]
+                                },
+                                $maxDistance: 100000
+                            }
+                    }
+            }, function (err, availableRides) {
+                if (err) {
+                    return res.send({ status: 200, findride: err })
+                }
+                if (availableRides.length > 0) {
+                    let destination={
+
+                    }
+                    let Totaldistance='';
+                    let sortedRides=[];
+                    for (var i = 0; i < availableRides.length; i++) {
+                       destination = availableRides[i].profile[0].to
+                       console.log(".....destination",availableRides[i].profile[0].to)
+                       Totaldistance=parseFloat(availableRides[i].profile[0].distance);
+                       let  distance=parseFloat(_getDistanceFromLatLonInKm(req.body.to.latitude, req.body.to.longitude, destination.latitude,destination.longitude));
+                       //let distance=calculateDistance(req.body.to,destination);
+                       console.log("....distance from  A to c",Totaldistance);
+                       console.log("....distance from  A to B",req.body.distance);
+                       console.log("....distance from  B to c",distance);
+                       console.log("....Totaldistance",Totaldistance-(parseFloat(req.body.distance)+distance));
+                       if(Totaldistance >= (parseFloat(req.body.distance)+distance)){
+                       if((Totaldistance-(parseFloat(req.body.distance)+distance) )>=0 && (Totaldistance-(parseFloat(req.body.distance)+distance)) < 50){
+                           console.log("if.....",Totaldistance-(distance+req.body.distance));
+                           sortedRides.push(availableRides[i]);
+                       }
+                      }else{
+                        if(((parseFloat(req.body.distance)+distance)-Totaldistance )>=0 && ((parseFloat(req.body.distance)+distance)-Totaldistance) < 50){
+                          
+                            console.log("else.....",Totaldistance-(distance+req.body.distance));
+                            sortedRides.push(availableRides[i]);
+                        }
+                      }
+                    }
+  
+                  
+                    return res.send({ status: 200, findride: sortedRides })
+                } else {
                     return res.send({ status: 200, message: "no available rides" })
                 }
-              })
-         
-    //   offerRide.find({geometry: {$near: [parseFloat(req.body.from.longitude),parseFloat(req.body.from.latitude)], $maxDistance:100000 } }, function (err, availableRides) {
-    //     if(err){
-    //         return res.send({ status: 200, findride: err })
-    //     }
-    //     if(availableRides){       
-              
-    //     return res.send({ status: 200, findride: availableRides })
-    //     }
-    //   })
-        // }).pretty()
+            })
 
-        // offerRide.aggregate([
-        //     {
-        //       $geoNear: {
-        //          near: { type: "Point", coordinates: [ -73.98652 , 40.752044 ] },
-        //          maxDistance: 300,
-        //          distanceField: "friends.calculated_distance",
-        //          query: {
-        //         "PLAYDATE_RANGE":{
-        //            "$geoIntersects":{
-        //               "$geometry":{
-        //                  "type":"Point",
-        //                  "coordinates":[
-        //                     -73.98652,
-        //                     40.752044
-        //                  ]
-        //               }
-        //            }
-        //         }
-        //      },
-        //          spherical: true
-         
-        //       }
-        //     }
-        //  ])
-
-        // find( { loc : { $near : [50,50] , $maxDistance : 1/111.12 } } )
     })
 
 
+   
+    api.post('/confirmride', function (req, res) {
+        console.log('req.....', req.body)
+       
+        User.findOne({ _id: req.body.userId }, function (err, user) {
+            
+
+                // ridesAccepted:{
+                //     ride_id:req.body.id,
+                //     name:req.body.name,
+                //     phonenumber:req.body.phonenumber,
+                //     Gender:req.body.gender,
+                //     seatsRequired:req.body.seatsRequired,
+                //     from:req.body.from.address,
+                //     to:req.body.to.address,
+                //     distance:req.body.distance,
+                //     emailId:req.body.emailId
+    
+                // },
+            let ridesInQueue=    {
+                     ride_id:user._id,
+                     firstname:user.firstname,
+                     seatsRequired:req.body.seatsRequired,
+                     from:req.body.from.address,
+                     to:req.body.to.address,
+                     distance:req.body.distance,
+                     emailId:user.email,
+                     isRideAccepted:false
+                 
+                }
+
+
+                console.log("ridesInQueue",ridesInQueue)
+               
+          
+
+             
+                offerRide.update(
+                    {
+                        user_id: req.body.user_id, 'profile.date': { $eq: req.body.date },'profile.seatsAvailable':{$gte:req.body.seatsRequired}
+        
+                    },
+        
+                    {
+                        "$set": {
+        
+                            
+                            'confirmation.$.ridesInQueue':ridesInQueue
+                            
+                        }
+                    }, function (err,offerride) {
+        
+                        if (err) {
+        
+                            console.log(err);
+                            return res.send({ status: 400, offerride: err })
+                        }
+                        return res.send({ status: 200, offerride:offerride  })
+                    }
+        
+        
+                )
+
+
+
+            
+
+
+        });
+        // Create and save the user
+      
+       
+
+              
+            
+    
+
+
+
+    });
+
+
+    api.post('/notifications', function (req, res) {
+
+        console.log("check the id", req.body.date)
+        offerRide.find({ user_id: req.body.userId }, function (err, offerride) {
+
+            if (offerride.length <= 0) {
+                return res.send({ status: 200 , offerride:"No rides"})
+                
+            }else if(offerride.length > 0) {
+                //console.log(...offerride)
+                return res.send({ status: 200, offerride: offerride })
+            }
+        });
+
+    });
     console.log("api......", api)
     return api
 }
