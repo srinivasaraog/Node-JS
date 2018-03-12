@@ -14,6 +14,9 @@ const secretKey = config.secretKey;
 const jsonwebtoken = require('jsonwebtoken');
 
 const bcrypt = require('bcrypt');
+var fs = require('fs');
+//var multer = require('multer');
+
 
 function createToken(user) {
     const token = jsonwebtoken.sign({
@@ -124,11 +127,14 @@ module.exports = function (app, express) {
                     res.send({ message: "Invalid password" });
                 } else {
                     const token = createToken(User);
+                   
                     res.json({
                         sucess: true,
                         message: "sucessfully login",
                         token: token,
                         userId: user._id
+                        
+
                     });
                 }
             }
@@ -181,14 +187,14 @@ module.exports = function (app, express) {
 
 
     api.post('/offerRide', function (req, res) {
-        console.log('from', req.body.id)
-        console.log('to', req.body.to)
+        console.log('from', req.body.id);
+        console.log('to', req.body.to);
 
         // Create and save the user
         var offerride = new offerRide({
             user_id: req.body.id,
             profile: [{
-     
+
                 from: {
                     latitude: req.body.from.latitude,
                     longitude: req.body.from.longitude,
@@ -204,21 +210,27 @@ module.exports = function (app, express) {
                 date: req.body.date,
                 time: req.body.time,
                 distance: req.body.distance,
-                seatsAvailable:req.body.seatsAvailable,
-                user_id: req.body.id
+                seatsAvailable: req.body.seatsAvailable,
+                user_id: req.body.id,
+                photo:{
+                    data:'',
+                    contentType:"",
+                    name:''
+                }
+                
+                
             }],
 
             geometry: {
                 type: "Point",
                 coordinates: [parseFloat(req.body.from.longitude), parseFloat(req.body.from.latitude)]
             }
-            
 
 
 
 
         });
-
+       
 
 
         console.log("....offerRide", offerride);
@@ -227,7 +239,7 @@ module.exports = function (app, express) {
             if (!user) {
                 return res.status(400).send({ msg: 'We were unable to find a user for this userid.' });
             } else {
-
+                
 
                 offerRide.findOne({ user_id: req.body.id, 'profile.date': { $eq: req.body.date } }, function (err, ride) {
                     console.log("check rides from today ");
@@ -238,8 +250,9 @@ module.exports = function (app, express) {
                     if (ride) {
                         return res.send({ status: 409, offerride: "modify ride details" })
                     } else {
-
-                        offerride.set({ 'geometry.coordinates': [parseFloat(req.body.from.longitude), parseFloat(req.body.from.latitude)] })
+                        if(user.photo)
+                          offerride.profile['0'].photo=user.photo;
+                        offerride.set({'geometry.coordinates': [parseFloat(req.body.from.longitude), parseFloat(req.body.from.latitude)] })
 
                         console.log("no rides available from today please add rides for this user ");
 
@@ -264,25 +277,36 @@ module.exports = function (app, express) {
 
 
     api.post('/yourride', function (req, res) {
+       
 
         console.log("check the id", req.body.date)
+        User.findById({_id:req.body.userId},function(err,user){
+                  console.log("....user photo",user.photo)
+
+      
         offerRide.find({ "profile.date": { $gte: req.body.date }, user_id: req.body.userId }, function (err, offerride) {
 
             if (offerride.length <= 0) {
+                console.log("....youride when offerride lenth 0",offerride)
                 return res.send({ status: 200 })
                 return;
             } else {
-                //console.log(...offerride)
-                return res.send({ status: 200, offerride: offerride })
+                let data="";
+               if(user.photo && user.photo.data)
+                data = "data:" + user.photo.contentType + ";base64," + new Buffer(user.photo.data).toString('base64');
+                //profile=Object.assign({},user.photo.name,user.photo.contentType,data)
+           
+               // offerride= Object.assign(offerride,  user );
+                return res.send({ status: 200, offerride: offerride,user:data})
             }
         });
+    })
 
-       
 
 
 
     });
- 
+
     api.post('/ridehistory', function (req, res) {
 
         console.log("check the id", req.body.date)
@@ -320,7 +344,7 @@ module.exports = function (app, express) {
                     "profile.$.date": req.body.date,
                     "profile.$.time": req.body.time,
                     "profile.$.distance": req.body.distance,
-                    "profile.$.seatsAvailable":req.body.seatsAvailable,
+                    "profile.$.seatsAvailable": req.body.seatsAvailable,
                     "geometry.coordinates": [parseFloat(req.body.from.longitude), parseFloat(req.body.from.latitude)]
                 }
 
@@ -407,36 +431,47 @@ module.exports = function (app, express) {
                     return res.send({ status: 200, findride: err })
                 }
                 if (availableRides.length > 0) {
-                    let destination={
+                    let destination = {
 
                     }
-                    let Totaldistance='';
-                    let sortedRides=[];
+                    let Totaldistance = '';
+                    let sortedRides = [];
                     for (var i = 0; i < availableRides.length; i++) {
-                       destination = availableRides[i].profile[0].to
-                       console.log(".....destination",availableRides[i].profile[0].to)
-                       Totaldistance=parseFloat(availableRides[i].profile[0].distance);
-                       let  distance=parseFloat(_getDistanceFromLatLonInKm(req.body.to.latitude, req.body.to.longitude, destination.latitude,destination.longitude));
-                       //let distance=calculateDistance(req.body.to,destination);
-                       console.log("....distance from  A to c",Totaldistance);
-                       console.log("....distance from  A to B",req.body.distance);
-                       console.log("....distance from  B to c",distance);
-                       console.log("....Totaldistance",Totaldistance-(parseFloat(req.body.distance)+distance));
-                       if(Totaldistance >= (parseFloat(req.body.distance)+distance)){
-                       if((Totaldistance-(parseFloat(req.body.distance)+distance) )>=0 && (Totaldistance-(parseFloat(req.body.distance)+distance)) < 50){
-                           console.log("if.....",Totaldistance-(distance+req.body.distance));
-                           sortedRides.push(availableRides[i]);
-                       }
-                      }else{
-                        if(((parseFloat(req.body.distance)+distance)-Totaldistance )>=0 && ((parseFloat(req.body.distance)+distance)-Totaldistance) < 50){
-                          
-                            console.log("else.....",Totaldistance-(distance+req.body.distance));
-                            sortedRides.push(availableRides[i]);
+                        destination = availableRides[i].profile[0].to
+                        console.log(".....destination", availableRides[i].profile[0].to)
+                        Totaldistance = parseFloat(availableRides[i].profile[0].distance);
+                        let distance = parseFloat(_getDistanceFromLatLonInKm(req.body.to.latitude, req.body.to.longitude, destination.latitude, destination.longitude));
+                        //let distance=calculateDistance(req.body.to,destination);
+                        console.log("....distance from  A to c", Totaldistance);
+                        console.log("....distance from  A to B", req.body.distance);
+                        console.log("....distance from  B to c", distance);
+                        console.log("....Totaldistance", Totaldistance - (parseFloat(req.body.distance) + distance));
+
+                     //parse Image
+                    
+                     
+
+
+                        if (Totaldistance >= (parseFloat(req.body.distance) + distance)) {
+                            if ((Totaldistance - (parseFloat(req.body.distance) + distance)) >= 0 && (Totaldistance - (parseFloat(req.body.distance) + distance)) < 50) {
+                                console.log("if.....", Totaldistance - (distance + req.body.distance));
+                                sortedRides.push(availableRides[i]);
+                            }
+                        } else {
+                            if (((parseFloat(req.body.distance) + distance) - Totaldistance) >= 0 && ((parseFloat(req.body.distance) + distance) - Totaldistance) < 50) {
+
+                                console.log("else.....", Totaldistance - (distance + req.body.distance));
+                               
+                                
+                                sortedRides.push(availableRides[i]);
+                            }
                         }
-                      }
+                        if(availableRides[i].profile[0].photo && availableRides[i].profile[0].photo.data)
+                           new Buffer(availableRides[i].profile[0].photo.data).toString('base64')
+                       
                     }
-  
-                  
+
+
                     return res.send({ status: 200, findride: sortedRides })
                 } else {
                     return res.send({ status: 200, message: "no available rides" })
@@ -446,82 +481,82 @@ module.exports = function (app, express) {
     })
 
 
-   
+
     api.post('/confirmride', function (req, res) {
         console.log('req.....', req.body)
-       
-        User.findOne({ _id: req.body.userId }, function (err, user) {
-            
 
-                // ridesAccepted:{
-                //     ride_id:req.body.id,
-                //     name:req.body.name,
-                //     phonenumber:req.body.phonenumber,
-                //     Gender:req.body.gender,
-                //     seatsRequired:req.body.seatsRequired,
-                //     from:req.body.from.address,
-                //     to:req.body.to.address,
-                //     distance:req.body.distance,
-                //     emailId:req.body.emailId
-    
-                // },
-            let ridesInQueue=    {
-                     ride_id:user._id,
-                     firstname:user.firstname,
-                     seatsRequired:req.body.seatsRequired,
-                     from:req.body.from.address,
-                     to:req.body.to.address,
-                     distance:req.body.distance,
-                     emailId:user.email,
-                     isRideAccepted:false
-                 
+        User.findOne({ _id: req.body.userId }, function (err, user) {
+
+
+            // ridesAccepted:{
+            //     ride_id:req.body.id,
+            //     name:req.body.name,
+            //     phonenumber:req.body.phonenumber,
+            //     Gender:req.body.gender,
+            //     seatsRequired:req.body.seatsRequired,
+            //     from:req.body.from.address,
+            //     to:req.body.to.address,
+            //     distance:req.body.distance,
+            //     emailId:req.body.emailId
+
+            // },
+            let ridesInQueue = {
+                ride_id: user._id,
+                firstname: user.firstname,
+                seatsRequired: req.body.seatsRequired,
+                from: req.body.from.address,
+                to: req.body.to.address,
+                distance: req.body.distance,
+                emailId: user.email,
+                isRideAccepted: false
+
+            }
+
+
+            console.log("ridesInQueue", ridesInQueue)
+
+
+
+
+            offerRide.update(
+                {
+                    user_id: req.body.user_id, 'profile.date': { $eq: req.body.date }, 'profile.seatsAvailable': { $gte: req.body.seatsRequired }
+
+                },
+
+                {
+                    "$set": {
+
+
+                        'confirmation.$.ridesInQueue': ridesInQueue
+
+                    }
+                }, function (err, offerride) {
+
+                    if (err) {
+
+                        console.log(err);
+                        return res.send({ status: 400, offerride: err })
+                    }
+                    return res.send({ status: 200, offerride: offerride })
                 }
 
 
-                console.log("ridesInQueue",ridesInQueue)
-               
-          
-
-             
-                offerRide.update(
-                    {
-                        user_id: req.body.user_id, 'profile.date': { $eq: req.body.date },'profile.seatsAvailable':{$gte:req.body.seatsRequired}
-        
-                    },
-        
-                    {
-                        "$set": {
-        
-                            
-                            'confirmation.$.ridesInQueue':ridesInQueue
-                            
-                        }
-                    }, function (err,offerride) {
-        
-                        if (err) {
-        
-                            console.log(err);
-                            return res.send({ status: 400, offerride: err })
-                        }
-                        return res.send({ status: 200, offerride:offerride  })
-                    }
-        
-        
-                )
+            )
 
 
 
-            
+
 
 
         });
         // Create and save the user
-      
-       
 
-              
-            
-    
+
+
+
+
+
 
 
 
@@ -534,13 +569,85 @@ module.exports = function (app, express) {
         offerRide.find({ user_id: req.body.userId }, function (err, offerride) {
 
             if (offerride.length <= 0) {
-                return res.send({ status: 200 , offerride:"No rides"})
-                
-            }else if(offerride.length > 0) {
+                return res.send({ status: 200, offerride: "No rides" })
+
+            } else if (offerride.length > 0) {
                 //console.log(...offerride)
                 return res.send({ status: 200, offerride: offerride })
             }
         });
+
+    });
+
+
+    api.post('/profileUpdate', function (req, res) {
+        console.log("user request", req.body.userId);
+        User.findOne({ _id: req.body.userId }, function (err, user) {
+
+            console.log("user availble", user);
+
+            if (err) {
+
+                return err;
+            }
+            if(user){
+           if(req.body.imageUrl){
+            const split = req.body.imageUrl.split(','); // or whatever is appropriate here. this will work for the example given
+            const base64string = split[1];
+            const buffer = Buffer.from(base64string, 'base64');
+
+            user.photo.data = buffer;
+            console.log('sync readFile');
+            console.log(user.photo.data);
+           }
+
+            //user.photo.data = fs.readFileSync(req.body.imageUrl)
+            user.photo.contentType = req.body.type;
+            user.photo.name = req.body.name;
+        
+            user.save( function (err) {
+
+                    if (err) {
+
+                        console.log(err);
+                        return res.send({ status: 400, photo: err })
+                    }
+                    return res.send({ status: 200, photo:User  })
+                });
+           
+            }
+
+        });
+
+
+
+    });
+
+    api.post('/profileImage', function (req, res) {
+        console.log("ureq.", req.body);
+        User.findOne({ _id: req.body.userId }, function (err, user) {
+            console.log("user available. in profileimage", user);
+
+
+            if (err) {
+
+                return err;
+            }
+            if(user){
+                if(user.photo !==undefined && user.photo !==""  ){
+                    data = "data:" + user.photo.contentType + ";base64," + new Buffer(user.photo.data).toString('base64');
+                    return res.send({ status: 200, imageResponse: data })
+                }
+            }
+            
+            
+           
+
+
+
+        });
+
+
 
     });
     console.log("api......", api)

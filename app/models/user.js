@@ -29,6 +29,11 @@ const loginSchema =new Schema({
     type: String,
     required: true
   },
+  photo:
+  { data: Buffer, 
+    contentType: String,
+    name:String
+   },
   roles: [{ type: 'String' }],
   isVerified: { type: Boolean, default: false },
   passwordResetToken: String,
