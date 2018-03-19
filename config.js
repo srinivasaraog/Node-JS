@@ -8,3 +8,6 @@ module.exports = {
 
 };
 //'mongodb://127.0.0.1::27017/login'
+//'mongodb://127.0.0.1:27017/local',
+//mongodb://username:password.mongolab.com:#####/db
+

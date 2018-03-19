@@ -66,14 +66,8 @@ const offerRideSchema = new Schema({
    photo: { 
     type:Object,
     required:false
-   }
-    
-  
-  }],
-  
-
-   geometry:GeoSchema,
-
+   },
+   
    confirmation:[{
 
     ridesInQueue:{
@@ -81,6 +75,13 @@ const offerRideSchema = new Schema({
       required: false
     }
    }]
+    
+  
+  }],
+  
+
+   geometry:GeoSchema
+
    
 
 });

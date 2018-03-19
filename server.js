@@ -12,6 +12,20 @@ var mongoose = require('mongoose');
 var app=express();
 app.use(cors());
 
+
+var http = require('http');
+var server = http.createServer(app);
+var io = require('socket.io').listen(server);
+io.set("origins", "*:*");
+server.listen(3000);                                 
+ 
+// io.on('connection', function(socket){                
+//   socket.on('create notification', function(data){ 
+//     console.log("notification created",data);  
+//     socket.broadcast.emit('new notification',data);  
+//   });
+// });
+
 mongoose.connect(config.database,function(err){
   if(err){
     console.log(err);
@@ -26,12 +40,12 @@ app.use(bodyParser.urlencoded({extended:true, limit:'50mb'}));
 
 app.use(morgan('dev'));
 
-const api=require('./app/routes/api')(app,express);
+const api=require('./app/routes/api')(app,express,io);
 app.use('/api',api);
 
 
 
- app.listen(config.port, function(err){
+server.listen(config.port, function(err){
    if(err){
      console.log(err);
 

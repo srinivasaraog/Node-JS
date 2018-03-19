@@ -15,6 +15,8 @@ const jsonwebtoken = require('jsonwebtoken');
 
 const bcrypt = require('bcrypt');
 var fs = require('fs');
+
+
 //var multer = require('multer');
 
 
@@ -31,11 +33,15 @@ function createToken(user) {
 }
 
 
-module.exports = function (app, express) {
+module.exports = function (app, express,io) {
 
     const api = express.Router();
-
-
+     
+io.on('connection', function(socket){  
+    socket.on('create notification', function(data){ 
+        console.log("notification created",data);  
+        
+    });
     api.post('/signup', function (req, res) {
 
         console.log("req....................", req.body);
@@ -127,13 +133,13 @@ module.exports = function (app, express) {
                     res.send({ message: "Invalid password" });
                 } else {
                     const token = createToken(User);
-                   
+
                     res.json({
                         sucess: true,
                         message: "sucessfully login",
                         token: token,
                         userId: user._id
-                        
+
 
                     });
                 }
@@ -212,13 +218,13 @@ module.exports = function (app, express) {
                 distance: req.body.distance,
                 seatsAvailable: req.body.seatsAvailable,
                 user_id: req.body.id,
-                photo:{
-                    data:'',
-                    contentType:"",
-                    name:''
+                photo: {
+                    data: '',
+                    contentType: "",
+                    name: ''
                 }
-                
-                
+
+
             }],
 
             geometry: {
@@ -230,7 +236,7 @@ module.exports = function (app, express) {
 
 
         });
-       
+
 
 
         console.log("....offerRide", offerride);
@@ -239,7 +245,7 @@ module.exports = function (app, express) {
             if (!user) {
                 return res.status(400).send({ msg: 'We were unable to find a user for this userid.' });
             } else {
-                
+
 
                 offerRide.findOne({ user_id: req.body.id, 'profile.date': { $eq: req.body.date } }, function (err, ride) {
                     console.log("check rides from today ");
@@ -250,9 +256,9 @@ module.exports = function (app, express) {
                     if (ride) {
                         return res.send({ status: 409, offerride: "modify ride details" })
                     } else {
-                        if(user.photo)
-                          offerride.profile['0'].photo=user.photo;
-                        offerride.set({'geometry.coordinates': [parseFloat(req.body.from.longitude), parseFloat(req.body.from.latitude)] })
+                        if (user.photo)
+                            offerride.profile['0'].photo = user.photo;
+                        offerride.set({ 'geometry.coordinates': [parseFloat(req.body.from.longitude), parseFloat(req.body.from.latitude)] })
 
                         console.log("no rides available from today please add rides for this user ");
 
@@ -277,30 +283,33 @@ module.exports = function (app, express) {
 
 
     api.post('/yourride', function (req, res) {
-       
+
 
         console.log("check the id", req.body.date)
-        User.findById({_id:req.body.userId},function(err,user){
-                  console.log("....user photo",user.photo)
+        User.findById({ _id: req.body.userId }, function (err, user) {
+            console.log("....user photo", user.photo)
 
-      
-        offerRide.find({ "profile.date": { $gte: req.body.date }, user_id: req.body.userId }, function (err, offerride) {
 
-            if (offerride.length <= 0) {
-                console.log("....youride when offerride lenth 0",offerride)
-                return res.send({ status: 200 })
-                return;
-            } else {
-                let data="";
-               if(user.photo && user.photo.data)
-                data = "data:" + user.photo.contentType + ";base64," + new Buffer(user.photo.data).toString('base64');
-                //profile=Object.assign({},user.photo.name,user.photo.contentType,data)
-           
-               // offerride= Object.assign(offerride,  user );
-                return res.send({ status: 200, offerride: offerride,user:data})
-            }
-        });
-    })
+            offerRide.find({ "profile.date": { $gte: req.body.date }, user_id: req.body.userId }, function (err, offerride) {
+
+                if (offerride.length <= 0) {
+                    console.log("....youride when offerride lenth 0", offerride)
+                    return res.send({ status: 200 })
+                    return;
+                } else {
+                    let data = "";
+                    if (user.photo && user.photo.data) {
+                        
+                        data = "data:" + user.photo.contentType + ";base64," + new Buffer(user.photo.data).toString('base64');
+                    }
+                    // data = "data:" + user.photo.contentType + ";base64," + new Buffer(user.photo.data).toString('base64');
+                    //profile=Object.assign({},user.photo.name,user.photo.contentType,data)
+
+                    // offerride= Object.assign(offerride,  user );
+                    return res.send({ status: 200, offerride: offerride, user: data })
+                }
+            });
+        })
 
 
 
@@ -447,9 +456,9 @@ module.exports = function (app, express) {
                         console.log("....distance from  B to c", distance);
                         console.log("....Totaldistance", Totaldistance - (parseFloat(req.body.distance) + distance));
 
-                     //parse Image
-                    
-                     
+                        //parse Image
+
+
 
 
                         if (Totaldistance >= (parseFloat(req.body.distance) + distance)) {
@@ -461,14 +470,14 @@ module.exports = function (app, express) {
                             if (((parseFloat(req.body.distance) + distance) - Totaldistance) >= 0 && ((parseFloat(req.body.distance) + distance) - Totaldistance) < 50) {
 
                                 console.log("else.....", Totaldistance - (distance + req.body.distance));
-                               
-                                
+
+
                                 sortedRides.push(availableRides[i]);
                             }
                         }
-                        if(availableRides[i].profile[0].photo && availableRides[i].profile[0].photo.data)
-                           new Buffer(availableRides[i].profile[0].photo.data).toString('base64')
-                       
+                        if (availableRides[i].profile[0].photo && availableRides[i].profile[0].photo.data)
+                            new Buffer(availableRides[i].profile[0].photo.data).toString('base64')
+
                     }
 
 
@@ -481,13 +490,13 @@ module.exports = function (app, express) {
     })
 
 
-
+   
     api.post('/confirmride', function (req, res) {
-        console.log('req.....', req.body)
-
+        
+    
         User.findOne({ _id: req.body.userId }, function (err, user) {
 
-
+            
             // ridesAccepted:{
             //     ride_id:req.body.id,
             //     name:req.body.name,
@@ -500,6 +509,7 @@ module.exports = function (app, express) {
             //     emailId:req.body.emailId
 
             // },
+           data=new Buffer( user.photo.data).toString('base64')
             let ridesInQueue = {
                 ride_id: user._id,
                 firstname: user.firstname,
@@ -508,15 +518,24 @@ module.exports = function (app, express) {
                 to: req.body.to.address,
                 distance: req.body.distance,
                 emailId: user.email,
+                image:data,
+                contentType:user.photo.contentType,
+                name:user.photo.name,
                 isRideAccepted: false
 
             }
 
+                        
+           
+            
+            // io.on('connection', function(socket){                
+            //     socket.on('create notification', function(ridesInQueue){ 
+            //       console.log("notification created",ridesInQueue);  
+            //       socket.broadcast.emit('new notification',ridesInQueue);  
+            //     });
+            //   });
 
-            console.log("ridesInQueue", ridesInQueue)
-
-
-
+            socket.broadcast.emit(req.body.user_id,ridesInQueue); 
 
             offerRide.update(
                 {
@@ -525,19 +544,27 @@ module.exports = function (app, express) {
                 },
 
                 {
-                    "$set": {
+                    "$addToSet": {
 
 
-                        'confirmation.$.ridesInQueue': ridesInQueue
+                        'profile.0.confirmation.$.ridesInQueue': ridesInQueue
 
                     }
-                }, function (err, offerride) {
-
+                }
+             
+                
+                , function (err, offerride) {
+                    
                     if (err) {
 
                         console.log(err);
                         return res.send({ status: 400, offerride: err })
-                    }
+                    }//else{
+                    //     socket.broadcast.emit(req.body.user_id,ridesInQueue); 
+                    // }
+                   
+                    
+                    
                     return res.send({ status: 200, offerride: offerride })
                 }
 
@@ -550,6 +577,7 @@ module.exports = function (app, express) {
 
 
         });
+    });
         // Create and save the user
 
 
@@ -565,7 +593,7 @@ module.exports = function (app, express) {
 
     api.post('/notifications', function (req, res) {
 
-        console.log("check the id", req.body.date)
+      
         offerRide.find({ user_id: req.body.userId }, function (err, offerride) {
 
             if (offerride.length <= 0) {
@@ -573,7 +601,8 @@ module.exports = function (app, express) {
 
             } else if (offerride.length > 0) {
                 //console.log(...offerride)
-                return res.send({ status: 200, offerride: offerride })
+                
+                return res.send({ status: 200, confirmation: offerride[0].confirmation })
             }
         });
 
@@ -590,31 +619,31 @@ module.exports = function (app, express) {
 
                 return err;
             }
-            if(user){
-           if(req.body.imageUrl){
-            const split = req.body.imageUrl.split(','); // or whatever is appropriate here. this will work for the example given
-            const base64string = split[1];
-            const buffer = Buffer.from(base64string, 'base64');
+            if (user) {
+                if (req.body.imageUrl) {
+                    const split = req.body.imageUrl.split(','); // or whatever is appropriate here. this will work for the example given
+                    const base64string = split[1];
+                    const buffer = Buffer.from(base64string, 'base64');
 
-            user.photo.data = buffer;
-            console.log('sync readFile');
-            console.log(user.photo.data);
-           }
+                    user.photo.data = buffer;
+                    console.log('sync readFile');
+                    console.log(user.photo.data);
+                }
 
-            //user.photo.data = fs.readFileSync(req.body.imageUrl)
-            user.photo.contentType = req.body.type;
-            user.photo.name = req.body.name;
-        
-            user.save( function (err) {
+                //user.photo.data = fs.readFileSync(req.body.imageUrl)
+                user.photo.contentType = req.body.type;
+                user.photo.name = req.body.name;
+
+                user.save(function (err) {
 
                     if (err) {
 
                         console.log(err);
                         return res.send({ status: 400, photo: err })
                     }
-                    return res.send({ status: 200, photo:User  })
+                    return res.send({ status: 200, photo: User })
                 });
-           
+
             }
 
         });
@@ -633,15 +662,18 @@ module.exports = function (app, express) {
 
                 return err;
             }
-            if(user){
-                if(user.photo !==undefined && user.photo !==""  ){
+            if (user) {
+                if (user.photo !== undefined && user.photo !== "" && user.photo.data !==undefined) {
                     data = "data:" + user.photo.contentType + ";base64," + new Buffer(user.photo.data).toString('base64');
                     return res.send({ status: 200, imageResponse: data })
+                }else{
+                    return res.send({ status: 400, photo: "no image available" })
                 }
+               
             }
-            
-            
-           
+
+
+
 
 
 
