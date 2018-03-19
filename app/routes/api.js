@@ -33,40 +33,21 @@ function createToken(user) {
 }
 
 
-module.exports = function (app, express,io) {
+module.exports = function (app, express, io) {
 
     const api = express.Router();
-     
-io.on('connection', function(socket){  
-    socket.on('create notification', function(data){ 
-        console.log("notification created",data);  
-        
-    });
-    api.post('/signup', function (req, res) {
 
-        console.log("req....................", req.body);
+    io.on('connection', function (socket) {
+        socket.on('create notification', function (data) {
+            console.log("notification created", data);
 
-
-        var user = new User({
-            firstname: req.body.firstname,
-            lastname: req.body.lastname,
-            email: req.body.email,
-            password: req.body.password,
-            confirmpassword: req.body.password
         });
+        api.post('/signup', function (req, res) {
+
+            console.log("req....................", req.body);
 
 
-
-
-
-        // Make sure this account doesn't already exist
-        User.findOne({ email: req.body.email }, function (err, user) {
-
-            // Make sure user doesn't already exist
-            if (user) return res.status(400).send({ msg: 'The email address you have entered is already associated with another account.' });
-
-            // Create and save the user
-            user = new User({
+            var user = new User({
                 firstname: req.body.firstname,
                 lastname: req.body.lastname,
                 email: req.body.email,
@@ -74,315 +55,304 @@ io.on('connection', function(socket){
                 confirmpassword: req.body.password
             });
 
-            user.save(function (err) {
-                if (err) { return res.status(500).send({ msg: err.message }); }
 
-                // Create a verification token for this user
-                var token = new Tokens({ _userId: user._id, token: crypto.randomBytes(16).toString('hex') });
-                console.log("token generated", token)
-                // Save the verification token
-                token.save(function (err) {
-                    if (err) { return res.status(500).send({ msg: err.message }); }
-                    console.log("save token")
-                    // Send the email
-                    //var transporter = nodemailer.createTransport({ service: 'Gmail', auth: { user: "rideshareapp@gmail.com", pass: "sweety1234" } });
-                    var options = {
-                        auth: {
-                            api_user: "srinivas17jan",
-                            api_key: "rideshare1"
-                        }
-                    }
 
-                    var transporter = nodemailer.createTransport(sgTransport(options));
-                    console.log("transporter generated", transporter);
-                    var mailOptions = { from: 'no-reply@yourwebapplication.com', to: user.email, subject: 'Account Verification Token', text: 'Hello,\n\n' + 'Please verify your account by clicking the link: \nhttp:\/\/' + req.headers.host + '\/api/confirmation\/' + token.token + '.\n' };
-                    transporter.sendMail(mailOptions, function (err) {
 
-                        console.log("send email using transporter");
 
-                        if (err) { console.log("send email using transporter error", err.message); return res.status(500).send({ msg: err.message }); }
+            // Make sure this account doesn't already exist
+            User.findOne({ email: req.body.email }, function (err, user) {
 
-                        res.json({ status: 200, message: "A verification email has been sent to" + user.email });
-                    });
+                // Make sure user doesn't already exist
+                if (user) return res.status(400).send({ msg: 'The email address you have entered is already associated with another account.' });
+
+                // Create and save the user
+                user = new User({
+                    firstname: req.body.firstname,
+                    lastname: req.body.lastname,
+                    email: req.body.email,
+                    password: req.body.password,
+                    confirmpassword: req.body.password
                 });
-            });
-        });
 
-
-    });
-
-    //find a specific object using findOne
-    //will check the db whether the user is existing or not
-    api.post('/login', function (req, res) {
-
-        User.findOne({ email: req.body.email }, function (err, user) {
-            console.log("user..........", user);
-            if (err) {
-                throw err;
-            }
-
-            if (!user) {
-                res.send({ message: "user doesnot exist" });
-            } else if (!user.isVerified) {
-
-                res.send({ message: "user is not verified" });
-
-            } else if (user) {
-                const validPassword = user.comparePassword(req.body.password);
-                if (!validPassword) {
-                    res.send({ message: "Invalid password" });
-                } else {
-                    const token = createToken(User);
-
-                    res.json({
-                        sucess: true,
-                        message: "sucessfully login",
-                        token: token,
-                        userId: user._id
-
-
-                    });
-                }
-            }
-
-        });
-
-
-
-    });
-
-
-    api.get('/users', function (req, res) {
-
-
-        User.find({}, function (err, users) {
-            if (err) {
-                res.send(err);
-                return;
-            }
-            res.json(users);
-        })
-
-    });
-
-
-    api.get('/confirmation/:token', function (req, res) {
-
-        console.log("hiiiii....", req.params.token)
-
-        // Find a matching token
-        Tokens.findOne({ token: req.params.token.replace('.', '') }, function (err, token) {
-            if (!token) return res.status(400).send({ type: 'not-verified', msg: 'We were unable to find a valid token. Your token my have expired.' });
-            console.log("inside token generation")
-            // If we found a token, find a matching user
-            User.findOne({ _id: token._userId }, function (err, user) {
-                console.log("is user existing in the data base");
-                if (!user) return res.status(400).send({ msg: 'We were unable to find a user for this token.' });
-                if (user.isVerified) return res.status(400).send({ type: 'already-verified', msg: 'This user has already been verified.' });
-
-                // Verify and save the user
-                user.isVerified = true;
                 user.save(function (err) {
                     if (err) { return res.status(500).send({ msg: err.message }); }
-                    //res.status(200).send("The account has been verified. Please log in.");
-                    return res.redirect("http://localhost:8100");
-                });
-            });
-        })
-    })
 
-
-    api.post('/offerRide', function (req, res) {
-        console.log('from', req.body.id);
-        console.log('to', req.body.to);
-
-        // Create and save the user
-        var offerride = new offerRide({
-            user_id: req.body.id,
-            profile: [{
-
-                from: {
-                    latitude: req.body.from.latitude,
-                    longitude: req.body.from.longitude,
-                    address: req.body.from.address
-                },
-                to: {
-
-                    latitude: req.body.to.latitude,
-                    longitude: req.body.to.longitude,
-                    address: req.body.to.address
-
-                },
-                date: req.body.date,
-                time: req.body.time,
-                distance: req.body.distance,
-                seatsAvailable: req.body.seatsAvailable,
-                user_id: req.body.id,
-                photo: {
-                    data: '',
-                    contentType: "",
-                    name: ''
-                }
-
-
-            }],
-
-            geometry: {
-                type: "Point",
-                coordinates: [parseFloat(req.body.from.longitude), parseFloat(req.body.from.latitude)]
-            }
-
-
-
-
-        });
-
-
-
-        console.log("....offerRide", offerride);
-        User.findOne({ _id: req.body.id }, function (err, user) {
-            console.log("is user existing in the data base");
-            if (!user) {
-                return res.status(400).send({ msg: 'We were unable to find a user for this userid.' });
-            } else {
-
-
-                offerRide.findOne({ user_id: req.body.id, 'profile.date': { $eq: req.body.date } }, function (err, ride) {
-                    console.log("check rides from today ");
-                    if (err) {
-                        return res.status(400).send({ msg: 'We were unable to find a user for this userid.' });
-                    }
-
-                    if (ride) {
-                        return res.send({ status: 409, offerride: "modify ride details" })
-                    } else {
-                        if (user.photo)
-                            offerride.profile['0'].photo = user.photo;
-                        offerride.set({ 'geometry.coordinates': [parseFloat(req.body.from.longitude), parseFloat(req.body.from.latitude)] })
-
-                        console.log("no rides available from today please add rides for this user ");
-
-                        offerride.save(function (err) {
-                            if (err) {
-                                return res.status(400).send({ msg: err });
+                    // Create a verification token for this user
+                    var token = new Tokens({ _userId: user._id, token: crypto.randomBytes(16).toString('hex') });
+                    console.log("token generated", token)
+                    // Save the verification token
+                    token.save(function (err) {
+                        if (err) { return res.status(500).send({ msg: err.message }); }
+                        console.log("save token")
+                        // Send the email
+                        //var transporter = nodemailer.createTransport({ service: 'Gmail', auth: { user: "rideshareapp@gmail.com", pass: "sweety1234" } });
+                        var options = {
+                            auth: {
+                                api_user: "srinivas17jan",
+                                api_key: "rideshare1"
                             }
-                            // offerride.ensureIndex({'location': '2dsphere'})
-                            return res.send({ status: 200, offerride: "updated ride details" })
-                        })
-                    }
+                        }
 
+                        var transporter = nodemailer.createTransport(sgTransport(options));
+                        console.log("transporter generated", transporter);
+                        var mailOptions = { from: 'no-reply@yourwebapplication.com', to: user.email, subject: 'Account Verification Token', text: 'Hello,\n\n' + 'Please verify your account by clicking the link: \nhttp:\/\/' + req.headers.host + '\/api/confirmation\/' + token.token + '.\n' };
+                        transporter.sendMail(mailOptions, function (err) {
 
+                            console.log("send email using transporter");
 
+                            if (err) { console.log("send email using transporter error", err.message); return res.status(500).send({ msg: err.message }); }
+
+                            res.json({ status: 200, message: "A verification email has been sent to" + user.email });
+                        });
+                    });
                 });
-            }
-        })
-
-    });
-
-
-
-
-    api.post('/yourride', function (req, res) {
-
-
-        console.log("check the id", req.body.date)
-        User.findById({ _id: req.body.userId }, function (err, user) {
-            console.log("....user photo", user.photo)
-
-
-            offerRide.find({ "profile.date": { $gte: req.body.date }, user_id: req.body.userId }, function (err, offerride) {
-
-                if (offerride.length <= 0) {
-                    console.log("....youride when offerride lenth 0", offerride)
-                    return res.send({ status: 200 })
-                    return;
-                } else {
-                    let data = "";
-                    if (user.photo && user.photo.data) {
-                        
-                        data = "data:" + user.photo.contentType + ";base64," + new Buffer(user.photo.data).toString('base64');
-                    }
-                    // data = "data:" + user.photo.contentType + ";base64," + new Buffer(user.photo.data).toString('base64');
-                    //profile=Object.assign({},user.photo.name,user.photo.contentType,data)
-
-                    // offerride= Object.assign(offerride,  user );
-                    return res.send({ status: 200, offerride: offerride, user: data })
-                }
             });
-        })
 
 
-
-
-    });
-
-    api.post('/ridehistory', function (req, res) {
-
-        console.log("check the id", req.body.date)
-        offerRide.find({ "profile.date": { $lt: req.body.date }, user_id: req.body.userId }, function (err, offerride) {
-
-            if (offerride.length <= 0) {
-                return res.send({ status: 200 })
-                return;
-            } else {
-                //console.log(...offerride)
-                return res.send({ status: 200, offerride: offerride })
-            }
         });
 
-    });
+        //find a specific object using findOne
+        //will check the db whether the user is existing or not
+        api.post('/login', function (req, res) {
 
-    api.post('/updateyourride', function (req, res) {
-
-        offerRide.update(
-            {
-                user_id: req.body.id, 'profile.date': { $eq: req.body.date }
-
-            },
-
-            {
-                "$set": {
-
-
-                    "profile.$.from.latitude": req.body.from.latitude,
-                    "profile.$.from.longitude": req.body.from.longitude,
-                    "profile.$.from.address": req.body.from.address,
-                    "profile.$.to.latitude": req.body.to.latitude,
-                    "profile.$.to.longitude": req.body.to.longitude,
-                    "profile.$.to.address": req.body.to.address,
-                    "profile.$.date": req.body.date,
-                    "profile.$.time": req.body.time,
-                    "profile.$.distance": req.body.distance,
-                    "profile.$.seatsAvailable": req.body.seatsAvailable,
-                    "geometry.coordinates": [parseFloat(req.body.from.longitude), parseFloat(req.body.from.latitude)]
-                }
-
-            }, function (err) {
-
+            User.findOne({ email: req.body.email }, function (err, user) {
+                console.log("user..........", user);
                 if (err) {
-
-                    console.log(err);
-                    return res.send({ status: 400, offerride: err })
+                    throw err;
                 }
-                return res.send({ status: 200, offerride: "updated" })
-            }
+
+                if (!user) {
+                    res.send({ message: "user doesnot exist" });
+                } else if (!user.isVerified) {
+
+                    res.send({ message: "user is not verified" });
+
+                } else if (user) {
+                    const validPassword = user.comparePassword(req.body.password);
+                    if (!validPassword) {
+                        res.send({ message: "Invalid password" });
+                    } else {
+                        const token = createToken(User);
+
+                        res.json({
+                            sucess: true,
+                            message: "sucessfully login",
+                            token: token,
+                            userId: user._id
 
 
-        )
-    });
+                        });
+                    }
+                }
+
+            });
 
 
-    api.delete('/deleteRide', function (req, res) {
 
-        console.log("delete request", req)
+        });
 
-        offerRide.deleteOne({ user_id: req.body.userId, 'profile.date': { $eq: req.body.date } }, function (err, offerride) {
-            if (err) {
-                console.log(err);
-                return res.send({ status: 400, offerride: err })
-            }
-            //console.log(offerride);
-            offerRide.find({ user_id: req.body.userId }, function (err, offerride) {
+
+        api.get('/users', function (req, res) {
+
+
+            User.find({}, function (err, users) {
+                if (err) {
+                    res.send(err);
+                    return;
+                }
+                res.json(users);
+            })
+
+        });
+
+
+        api.get('/confirmation/:token', function (req, res) {
+
+            console.log("hiiiii....", req.params.token)
+
+            // Find a matching token
+            Tokens.findOne({ token: req.params.token.replace('.', '') }, function (err, token) {
+                if (!token) return res.status(400).send({ type: 'not-verified', msg: 'We were unable to find a valid token. Your token my have expired.' });
+                console.log("inside token generation")
+                // If we found a token, find a matching user
+                User.findOne({ _id: token._userId }, function (err, user) {
+                    console.log("is user existing in the data base");
+                    if (!user) return res.status(400).send({ msg: 'We were unable to find a user for this token.' });
+                    if (user.isVerified) return res.status(400).send({ type: 'already-verified', msg: 'This user has already been verified.' });
+
+                    // Verify and save the user
+                    user.isVerified = true;
+                    user.save(function (err) {
+                        if (err) { return res.status(500).send({ msg: err.message }); }
+                        //res.status(200).send("The account has been verified. Please log in.");
+                        return res.redirect("http://localhost:8100");
+                    });
+                });
+            })
+        })
+
+
+        api.post('/offerRide', function (req, res) {
+            console.log('from', req.body.id);
+            console.log('to', req.body.to);
+
+            // Create and save the user
+            var offerride = new offerRide({
+                user_id: req.body.id,
+                profile: [{
+
+                    from: {
+                        latitude: req.body.from.latitude,
+                        longitude: req.body.from.longitude,
+                        address: req.body.from.address
+                    },
+                    to: {
+
+                        latitude: req.body.to.latitude,
+                        longitude: req.body.to.longitude,
+                        address: req.body.to.address
+
+                    },
+                    date: req.body.date,
+                    time: req.body.time,
+                    distance: req.body.distance,
+                    seatsAvailable: req.body.seatsAvailable,
+                    user_id: req.body.id,
+                    photo: {
+                        data: '',
+                        contentType: "",
+                        name: ''
+                    }
+
+
+                }],
+
+                geometry: {
+                    type: "Point",
+                    coordinates: [parseFloat(req.body.from.longitude), parseFloat(req.body.from.latitude)]
+                }
+
+
+
+
+            });
+
+
+
+            console.log("....offerRide", offerride);
+            User.findOne({ _id: req.body.id }, function (err, user) {
+                console.log("is user existing in the data base");
+                if (!user) {
+                    return res.status(400).send({ msg: 'We were unable to find a user for this userid.' });
+                } else {
+
+
+                    offerRide.findOne({ user_id: req.body.id, 'profile.date': { $eq: req.body.date } }, function (err, ride) {
+                        console.log("check rides from today ");
+                        if (err) {
+                            return res.status(400).send({ msg: 'We were unable to find a user for this userid.' });
+                        }
+
+                        if (ride) {
+                            return res.send({ status: 409, offerride: "modify ride details" })
+                        } else {
+                            if (user.photo)
+                                offerride.profile['0'].photo = user.photo;
+                            offerride.set({ 'geometry.coordinates': [parseFloat(req.body.from.longitude), parseFloat(req.body.from.latitude)] })
+
+                            console.log("no rides available from today please add rides for this user ");
+
+                            offerride.save(function (err) {
+                                if (err) {
+                                    return res.status(400).send({ msg: err });
+                                }
+                                // offerride.ensureIndex({'location': '2dsphere'})
+                                return res.send({ status: 200, offerride: "updated ride details" })
+                            })
+                        }
+
+
+
+                    });
+                }
+            })
+
+        });
+
+
+
+
+        api.post('/yourride', function (req, res) {
+            var ObjectId = require('mongodb').ObjectID;
+
+            console.log("check the id", req.body.date)
+            User.findById({ _id: req.body.userId }, function (err, user) {
+                console.log("....user photo", req.body.userId)
+
+
+                let availableRides = [];
+                offerRide.find({ "profile.date": { $gte: req.body.date }, user_id: req.body.userId }, function (err, offerride) {
+
+                    if (offerride && offerride.length <= 0) {
+                        
+                        //return res.send({ status: 200 })
+                        // return;
+                    } else {
+
+                        for(let i=0;i<offerride.length;i++){
+                            availableRides.push(offerride[i]);
+                        }
+                       
+                        
+                       
+                    }
+                        offerRide.find({ "profile.confirmation.ridesInQueue.ride_id": ObjectId(req.body.userId) }, function (err, ride) {
+
+
+
+                            let data = "";
+                            if (user && user.photo.data) {
+        
+                                data = "data:" + user.photo.contentType + ";base64," + new Buffer(user.photo.data).toString('base64');
+                            }
+        
+        
+                            if (ride && ride.length <= 0 && availableRides.length <= 0) {
+                                
+                                return res.send({ status: 200 })
+                            }else if(ride && ride.length <= 0 && availableRides.length > 0) {
+                                console.log("....find rid when offerride lenth 0", availableRides)
+                                return res.send({ status: 200, availableRides: availableRides, user: data })
+                            } else {
+                                for(let i=0;i<ride.length;i++){
+                                    availableRides.push(ride[i]);
+                                }
+                                availableRides.push(ride);
+                                return res.send({ status: 200, availableRides: availableRides, user: data })
+                            }
+        
+        
+                        })
+                       
+                    
+                });
+
+                
+
+
+
+            })
+
+           
+
+
+
+        });
+
+        api.post('/ridehistory', function (req, res) {
+
+            console.log("check the id", req.body.date)
+            offerRide.find({ "profile.date": { $lt: req.body.date }, user_id: req.body.userId }, function (err, offerride) {
 
                 if (offerride.length <= 0) {
                     return res.send({ status: 200 })
@@ -391,193 +361,256 @@ io.on('connection', function(socket){
                     //console.log(...offerride)
                     return res.send({ status: 200, offerride: offerride })
                 }
-            })
+            });
+
         });
 
-
-    });
-
-
-    function _getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
-        var R = 6371; // Radius of the earth in kilometers
-        var dLat = deg2rad(lat2 - lat1); // deg2rad below
-        var dLon = deg2rad(lon2 - lon1);
-        var a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        var d = R * c; // Distance in KM
-        return d;
-    }
-
-    function deg2rad(deg) {
-        return deg * (Math.PI / 180)
-    }
-
-
-    api.post('/findride', function (req, res) {
-        console.log(req.body);
-        offerRide.find(
-            {
-                "profile.date": { $eq: req.body.date },
-                "profile.seatsAvailable": { $gte: req.body.seatsRequired },
-
-
-                geometry:
-                    {
-                        $near:
-                            {
-                                $geometry: {
-                                    type: "Point",
-                                    coordinates: [parseFloat(req.body.from.longitude), parseFloat(req.body.from.latitude)]
-                                },
-                                $maxDistance: 100000
-                            }
-                    }
-            }, function (err, availableRides) {
-                if (err) {
-                    return res.send({ status: 200, findride: err })
-                }
-                if (availableRides.length > 0) {
-                    let destination = {
-
-                    }
-                    let Totaldistance = '';
-                    let sortedRides = [];
-                    for (var i = 0; i < availableRides.length; i++) {
-                        destination = availableRides[i].profile[0].to
-                        console.log(".....destination", availableRides[i].profile[0].to)
-                        Totaldistance = parseFloat(availableRides[i].profile[0].distance);
-                        let distance = parseFloat(_getDistanceFromLatLonInKm(req.body.to.latitude, req.body.to.longitude, destination.latitude, destination.longitude));
-                        //let distance=calculateDistance(req.body.to,destination);
-                        console.log("....distance from  A to c", Totaldistance);
-                        console.log("....distance from  A to B", req.body.distance);
-                        console.log("....distance from  B to c", distance);
-                        console.log("....Totaldistance", Totaldistance - (parseFloat(req.body.distance) + distance));
-
-                        //parse Image
-
-
-
-
-                        if (Totaldistance >= (parseFloat(req.body.distance) + distance)) {
-                            if ((Totaldistance - (parseFloat(req.body.distance) + distance)) >= 0 && (Totaldistance - (parseFloat(req.body.distance) + distance)) < 50) {
-                                console.log("if.....", Totaldistance - (distance + req.body.distance));
-                                sortedRides.push(availableRides[i]);
-                            }
-                        } else {
-                            if (((parseFloat(req.body.distance) + distance) - Totaldistance) >= 0 && ((parseFloat(req.body.distance) + distance) - Totaldistance) < 50) {
-
-                                console.log("else.....", Totaldistance - (distance + req.body.distance));
-
-
-                                sortedRides.push(availableRides[i]);
-                            }
-                        }
-                        if (availableRides[i].profile[0].photo && availableRides[i].profile[0].photo.data)
-                            new Buffer(availableRides[i].profile[0].photo.data).toString('base64')
-
-                    }
-
-
-                    return res.send({ status: 200, findride: sortedRides })
-                } else {
-                    return res.send({ status: 200, message: "no available rides" })
-                }
-            })
-
-    })
-
-
-   
-    api.post('/confirmride', function (req, res) {
-        
-    
-        User.findOne({ _id: req.body.userId }, function (err, user) {
-
-            
-            // ridesAccepted:{
-            //     ride_id:req.body.id,
-            //     name:req.body.name,
-            //     phonenumber:req.body.phonenumber,
-            //     Gender:req.body.gender,
-            //     seatsRequired:req.body.seatsRequired,
-            //     from:req.body.from.address,
-            //     to:req.body.to.address,
-            //     distance:req.body.distance,
-            //     emailId:req.body.emailId
-
-            // },
-           data=new Buffer( user.photo.data).toString('base64')
-            let ridesInQueue = {
-                ride_id: user._id,
-                firstname: user.firstname,
-                seatsRequired: req.body.seatsRequired,
-                from: req.body.from.address,
-                to: req.body.to.address,
-                distance: req.body.distance,
-                emailId: user.email,
-                image:data,
-                contentType:user.photo.contentType,
-                name:user.photo.name,
-                isRideAccepted: false
-
-            }
-
-                        
-           
-            
-            // io.on('connection', function(socket){                
-            //     socket.on('create notification', function(ridesInQueue){ 
-            //       console.log("notification created",ridesInQueue);  
-            //       socket.broadcast.emit('new notification',ridesInQueue);  
-            //     });
-            //   });
-
-            socket.broadcast.emit(req.body.user_id,ridesInQueue); 
+        api.post('/updateyourride', function (req, res) {
 
             offerRide.update(
                 {
-                    user_id: req.body.user_id, 'profile.date': { $eq: req.body.date }, 'profile.seatsAvailable': { $gte: req.body.seatsRequired }
+                    user_id: req.body.id, 'profile.date': { $eq: req.body.date }
 
                 },
 
                 {
-                    "$addToSet": {
+                    "$set": {
 
 
-                        'profile.0.confirmation.$.ridesInQueue': ridesInQueue
-
+                        "profile.$.from.latitude": req.body.from.latitude,
+                        "profile.$.from.longitude": req.body.from.longitude,
+                        "profile.$.from.address": req.body.from.address,
+                        "profile.$.to.latitude": req.body.to.latitude,
+                        "profile.$.to.longitude": req.body.to.longitude,
+                        "profile.$.to.address": req.body.to.address,
+                        "profile.$.date": req.body.date,
+                        "profile.$.time": req.body.time,
+                        "profile.$.distance": req.body.distance,
+                        "profile.$.seatsAvailable": req.body.seatsAvailable,
+                        "geometry.coordinates": [parseFloat(req.body.from.longitude), parseFloat(req.body.from.latitude)]
                     }
-                }
-             
-                
-                , function (err, offerride) {
-                    
+
+                }, function (err) {
+
                     if (err) {
 
                         console.log(err);
                         return res.send({ status: 400, offerride: err })
-                    }//else{
-                    //     socket.broadcast.emit(req.body.user_id,ridesInQueue); 
-                    // }
-                   
-                    
-                    
-                    return res.send({ status: 200, offerride: offerride })
+                    }
+                    return res.send({ status: 200, offerride: "updated" })
                 }
 
 
             )
+        });
 
 
+        api.delete('/deleteRide', function (req, res) {
 
+            console.log("delete request", req)
 
+            offerRide.deleteOne({ user_id: req.body.userId, 'profile.date': { $eq: req.body.date } }, function (err, offerride) {
+                if (err) {
+                    console.log(err);
+                    return res.send({ status: 400, offerride: err })
+                }
+                //console.log(offerride);
+                offerRide.find({ user_id: req.body.userId }, function (err, offerride) {
+
+                    if (offerride.length <= 0) {
+                        return res.send({ status: 200 })
+                        return;
+                    } else {
+                        //console.log(...offerride)
+                        return res.send({ status: 200, offerride: offerride })
+                    }
+                })
+            });
 
 
         });
-    });
+
+
+        function _getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+            var R = 6371; // Radius of the earth in kilometers
+            var dLat = deg2rad(lat2 - lat1); // deg2rad below
+            var dLon = deg2rad(lon2 - lon1);
+            var a =
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            var d = R * c; // Distance in KM
+            return d;
+        }
+
+        function deg2rad(deg) {
+            return deg * (Math.PI / 180)
+        }
+
+
+        api.post('/findride', function (req, res) {
+            console.log(req.body);
+            offerRide.find(
+                {
+                    "profile.date": { $eq: req.body.date },
+                    "profile.seatsAvailable": { $gte: req.body.seatsRequired },
+
+
+                    geometry:
+                        {
+                            $near:
+                                {
+                                    $geometry: {
+                                        type: "Point",
+                                        coordinates: [parseFloat(req.body.from.longitude), parseFloat(req.body.from.latitude)]
+                                    },
+                                    $maxDistance: 100000
+                                }
+                        }
+                }, function (err, availableRides) {
+                    if (err) {
+                        return res.send({ status: 200, findride: err })
+                    }
+                    if (availableRides.length > 0) {
+                        let destination = {
+
+                        }
+                        let Totaldistance = '';
+                        let sortedRides = [];
+                        for (var i = 0; i < availableRides.length; i++) {
+                            destination = availableRides[i].profile[0].to
+                            console.log(".....destination", availableRides[i].profile[0].to)
+                            Totaldistance = parseFloat(availableRides[i].profile[0].distance);
+                            let distance = parseFloat(_getDistanceFromLatLonInKm(req.body.to.latitude, req.body.to.longitude, destination.latitude, destination.longitude));
+                            //let distance=calculateDistance(req.body.to,destination);
+                            console.log("....distance from  A to c", Totaldistance);
+                            console.log("....distance from  A to B", req.body.distance);
+                            console.log("....distance from  B to c", distance);
+                            console.log("....Totaldistance", Totaldistance - (parseFloat(req.body.distance) + distance));
+
+                            //parse Image
+
+
+
+
+                            if (Totaldistance >= (parseFloat(req.body.distance) + distance)) {
+                                if ((Totaldistance - (parseFloat(req.body.distance) + distance)) >= 0 && (Totaldistance - (parseFloat(req.body.distance) + distance)) < 50) {
+                                    console.log("if.....", Totaldistance - (distance + req.body.distance));
+                                    sortedRides.push(availableRides[i]);
+                                }
+                            } else {
+                                if (((parseFloat(req.body.distance) + distance) - Totaldistance) >= 0 && ((parseFloat(req.body.distance) + distance) - Totaldistance) < 50) {
+
+                                    console.log("else.....", Totaldistance - (distance + req.body.distance));
+
+
+                                    sortedRides.push(availableRides[i]);
+                                }
+                            }
+                            if (availableRides[i].profile[0].photo && availableRides[i].profile[0].photo.data)
+                                new Buffer(availableRides[i].profile[0].photo.data).toString('base64')
+
+                        }
+
+
+                        return res.send({ status: 200, findride: sortedRides })
+                    } else {
+                        return res.send({ status: 200, message: "no available rides" })
+                    }
+                })
+
+        })
+
+
+
+        api.post('/confirmride', function (req, res) {
+
+
+            User.findOne({ _id: req.body.userId }, function (err, user) {
+
+
+                // ridesAccepted:{
+                //     ride_id:req.body.id,
+                //     name:req.body.name,
+                //     phonenumber:req.body.phonenumber,
+                //     Gender:req.body.gender,
+                //     seatsRequired:req.body.seatsRequired,
+                //     from:req.body.from.address,
+                //     to:req.body.to.address,
+                //     distance:req.body.distance,
+                //     emailId:req.body.emailId
+
+                // },
+                data = new Buffer(user.photo.data).toString('base64')
+                let ridesInQueue = {
+                    ride_id: user._id,
+                    firstname: user.firstname,
+                    seatsRequired: req.body.seatsRequired,
+                    from: req.body.from.address,
+                    to: req.body.to.address,
+                    distance: req.body.distance,
+                    emailId: user.email,
+                    image: data,
+                    contentType: user.photo.contentType,
+                    name: user.photo.name,
+                    isRideAccepted: false
+
+                }
+
+
+
+
+                // io.on('connection', function(socket){                
+                //     socket.on('create notification', function(ridesInQueue){ 
+                //       console.log("notification created",ridesInQueue);  
+                //       socket.broadcast.emit('new notification',ridesInQueue);  
+                //     });
+                //   });
+
+                socket.broadcast.emit(req.body.user_id, ridesInQueue);
+
+                offerRide.update(
+                    {
+                        user_id: req.body.user_id, 'profile.date': { $eq: req.body.date }, 'profile.seatsAvailable': { $gte: req.body.seatsRequired }
+
+                    },
+
+                    {
+                        "$addToSet": {
+
+
+                            'profile.0.confirmation.$.ridesInQueue': ridesInQueue
+
+                        }
+                    }
+
+
+                    , function (err, offerride) {
+
+                        if (err) {
+
+                            console.log(err);
+                            return res.send({ status: 400, offerride: err })
+                        }//else{
+                        //     socket.broadcast.emit(req.body.user_id,ridesInQueue); 
+                        // }
+
+
+
+                        return res.send({ status: 200, offerride: offerride })
+                    }
+
+
+                )
+
+
+
+
+
+
+            });
+        });
         // Create and save the user
 
 
@@ -593,7 +626,7 @@ io.on('connection', function(socket){
 
     api.post('/notifications', function (req, res) {
 
-      
+
         offerRide.find({ user_id: req.body.userId }, function (err, offerride) {
 
             if (offerride.length <= 0) {
@@ -601,7 +634,7 @@ io.on('connection', function(socket){
 
             } else if (offerride.length > 0) {
                 //console.log(...offerride)
-                
+
                 return res.send({ status: 200, confirmation: offerride[0].confirmation })
             }
         });
@@ -663,13 +696,13 @@ io.on('connection', function(socket){
                 return err;
             }
             if (user) {
-                if (user.photo !== undefined && user.photo !== "" && user.photo.data !==undefined) {
+                if (user.photo !== undefined && user.photo !== "" && user.photo.data !== undefined) {
                     data = "data:" + user.photo.contentType + ";base64," + new Buffer(user.photo.data).toString('base64');
                     return res.send({ status: 200, imageResponse: data })
-                }else{
+                } else {
                     return res.send({ status: 400, photo: "no image available" })
                 }
-               
+
             }
 
 
