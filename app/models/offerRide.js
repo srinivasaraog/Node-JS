@@ -68,13 +68,13 @@ const offerRideSchema = new Schema({
     required:false
    },
    
-   confirmation:[{
+   confirmation:{
 
-    ridesInQueue:{
+ 
       type: Object,
       required: false
-    }
-   }]
+    
+   }
     
   
   }],

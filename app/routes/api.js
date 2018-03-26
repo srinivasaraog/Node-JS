@@ -294,56 +294,56 @@ module.exports = function (app, express, io) {
                 offerRide.find({ "profile.date": { $gte: req.body.date }, user_id: req.body.userId }, function (err, offerride) {
 
                     if (offerride && offerride.length <= 0) {
-                        
+
                         //return res.send({ status: 200 })
                         // return;
                     } else {
 
-                        for(let i=0;i<offerride.length;i++){
-                            availableRides.push(offerride[i]);
+                        for (let i = 0; i < offerride.length; i++) {
+                            availableRides.push(offerride[i].profile);
                         }
-                       
-                        
-                       
+
+
+
                     }
-                        offerRide.find({ "profile.confirmation.ridesInQueue.ride_id": ObjectId(req.body.userId) }, function (err, ride) {
+                    offerRide.find({ "profile.confirmation.ride_id": ObjectId(req.body.userId) }, function (err, ride) {
 
 
 
-                            let data = "";
-                            if (user && user.photo.data) {
-        
-                                data = "data:" + user.photo.contentType + ";base64," + new Buffer(user.photo.data).toString('base64');
+                        let data = "";
+                        if (user && user.photo.data) {
+
+                            data = "data:" + user.photo.contentType + ";base64," + new Buffer(user.photo.data).toString('base64');
+                        }
+
+
+                        if (ride && ride.length <= 0 && availableRides.length <= 0) {
+
+                            return res.send({ status: 200 })
+                        } else if (ride && ride.length <= 0 && availableRides.length > 0) {
+                            console.log("....find rid when offerride lenth 0", availableRides)
+                            return res.send({ status: 200, availableRides: availableRides, user: data })
+                        } else {
+                            for (let i = 0; i < ride.length; i++) {
+                                availableRides.push(ride[i].profile);
                             }
-        
-        
-                            if (ride && ride.length <= 0 && availableRides.length <= 0) {
-                                
-                                return res.send({ status: 200 })
-                            }else if(ride && ride.length <= 0 && availableRides.length > 0) {
-                                console.log("....find rid when offerride lenth 0", availableRides)
-                                return res.send({ status: 200, availableRides: availableRides, user: data })
-                            } else {
-                                for(let i=0;i<ride.length;i++){
-                                    availableRides.push(ride[i]);
-                                }
-                                availableRides.push(ride);
-                                return res.send({ status: 200, availableRides: availableRides, user: data })
-                            }
-        
-        
-                        })
-                       
-                    
+
+                            return res.send({ status: 200, availableRides: availableRides, user: data })
+                        }
+
+
+                    })
+
+
                 });
 
-                
+
 
 
 
             })
 
-           
+
 
 
 
@@ -453,8 +453,14 @@ module.exports = function (app, express, io) {
             console.log(req.body);
             offerRide.find(
                 {
-                    "profile.date": { $eq: req.body.date },
-                    "profile.seatsAvailable": { $gte: req.body.seatsRequired },
+                    // "profile.date": { $eq: req.body.date },
+                    // "profile.seatsAvailable": { $gte: req.body.seatsRequired },
+
+
+                    $and: [
+                        { $or: [{ "profile.date": { $eq: req.body.date } }] },
+                        { $or: [{ "profile.seatsAvailable": { $gte: req.body.seatsRequired } }, { "courierWeight": req.body.courierWeight }] }
+                    ],
 
 
                     geometry:
@@ -529,6 +535,131 @@ module.exports = function (app, express, io) {
 
             User.findOne({ _id: req.body.userId }, function (err, user) {
 
+                        console.log("req.body.courierWeight",req.body.courierWeight);
+                        console.log("req.body.seatsAvailable",req.body.seatsRequired);
+                if (req.body.seatsRequired) {
+
+                    data = new Buffer(user.photo.data).toString('base64')
+                    let confirmation = {
+                        ride_id: user._id,
+                        firstname: user.firstname,
+                        seatsRequired: req.body.seatsRequired,
+                        from: req.body.from.address,
+                        to: req.body.to.address,
+                        distance: req.body.distance,
+                        date: req.body.date,
+                        emailId: user.email,
+                        data: data,
+                        cost: req.body.costPerRide,
+                        contentType: user.photo.contentType,
+                        name: user.photo.name,
+                        time: req.body.time,
+                        isRideAccepted: false
+
+                    }
+
+
+
+
+                    // io.on('connection', function(socket){                
+                    //     socket.on('create notification', function(ridesInQueue){ 
+                    //       console.log("notification created",ridesInQueue);  
+                    //       socket.broadcast.emit('new notification',ridesInQueue);  
+                    //     });
+                    //   });
+
+                    socket.broadcast.emit(req.body.user_id, confirmation);
+
+                    offerRide.update(
+                        {
+                            user_id: req.body.user_id, 'profile.date': { $eq: req.body.date }, 'profile.seatsAvailable': { $gte: req.body.seatsRequired }
+
+                        },
+
+                        {
+                            "$addToSet": {
+                                'profile.$.confirmation': confirmation
+                            },
+                            "$set": {
+                                'profile.$.seatsAvailable': req.body.seatsAvailable - req.body.seatsRequired
+                            }
+                        }, function (err, offerride) {
+
+                            if (err) {
+
+                                console.log(err);
+                                return res.send({ status: 400, offerride: err })
+                            }//else{
+                            //     socket.broadcast.emit(req.body.user_id,ridesInQueue); 
+                            // }
+
+
+
+
+
+                            return res.send({ status: 200, offerride: offerride })
+                        }
+
+
+                    )
+
+
+                } else if (req.body.courierWeight) {
+                    data = new Buffer(user.photo.data).toString('base64')
+                    let confirmation = {
+                        ride_id: user._id,
+                        firstname: user.firstname,
+                        courierWeight: req.body.courierWeight,
+                        from: req.body.from.address,
+                        to: req.body.to.address,
+                        distance: req.body.distance,
+                        date: req.body.date,
+                        emailId: user.email,
+                        data: data,
+                        cost: req.body.costPerRide,
+                        contentType: user.photo.contentType,
+                        name: user.photo.name,
+                        time: req.body.time,
+                        isCourierAccepted: false
+
+                    }
+
+
+
+
+                    socket.broadcast.emit(req.body.user_id, confirmation);
+
+                    offerRide.update(
+                        {
+                            user_id: req.body.user_id, 'profile.date': { $eq: req.body.date }
+
+                        },
+
+                        {
+                            "$addToSet": {
+                                'profile.$.confirmation': confirmation
+                            }
+                        }, function (err, offerride) {
+
+                            if (err) {
+
+                                console.log(err);
+                                return res.send({ status: 400, offerride: err })
+                            }//else{
+                            //     socket.broadcast.emit(req.body.user_id,ridesInQueue); 
+                            // }
+
+
+
+
+
+                            return res.send({ status: 200, offerride: offerride })
+                        }
+
+
+                    )
+                }
+
 
                 // ridesAccepted:{
                 //     ride_id:req.body.id,
@@ -542,67 +673,7 @@ module.exports = function (app, express, io) {
                 //     emailId:req.body.emailId
 
                 // },
-                data = new Buffer(user.photo.data).toString('base64')
-                let ridesInQueue = {
-                    ride_id: user._id,
-                    firstname: user.firstname,
-                    seatsRequired: req.body.seatsRequired,
-                    from: req.body.from.address,
-                    to: req.body.to.address,
-                    distance: req.body.distance,
-                    emailId: user.email,
-                    image: data,
-                    contentType: user.photo.contentType,
-                    name: user.photo.name,
-                    isRideAccepted: false
 
-                }
-
-
-
-
-                // io.on('connection', function(socket){                
-                //     socket.on('create notification', function(ridesInQueue){ 
-                //       console.log("notification created",ridesInQueue);  
-                //       socket.broadcast.emit('new notification',ridesInQueue);  
-                //     });
-                //   });
-
-                socket.broadcast.emit(req.body.user_id, ridesInQueue);
-
-                offerRide.update(
-                    {
-                        user_id: req.body.user_id, 'profile.date': { $eq: req.body.date }, 'profile.seatsAvailable': { $gte: req.body.seatsRequired }
-
-                    },
-
-                    {
-                        "$addToSet": {
-
-
-                            'profile.0.confirmation.$.ridesInQueue': ridesInQueue
-
-                        }
-                    }
-
-
-                    , function (err, offerride) {
-
-                        if (err) {
-
-                            console.log(err);
-                            return res.send({ status: 400, offerride: err })
-                        }//else{
-                        //     socket.broadcast.emit(req.body.user_id,ridesInQueue); 
-                        // }
-
-
-
-                        return res.send({ status: 200, offerride: offerride })
-                    }
-
-
-                )
 
 
 
